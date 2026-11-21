@@ -4,7 +4,7 @@
 
 ## 直接体验
 
-**GitHub Pages（页面入口）：** https://oliverww-afk.github.io/qtree/
+**GitHub Pages（稳定入口）：** https://oliverww-afk.github.io/qtree/
 
 **公网 HTTPS（临时后端）：** https://bvskdr-ip-117-158-222-122.tunnelmole.net
 

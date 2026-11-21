@@ -454,8 +454,11 @@
 
   function specificEnough(value, minLength) {
     const text = String(value || "").trim();
-    if (Array.from(text).length < (minLength || 8)) return false;
-    return !/^(你(是否|有没有|最近|愿意|更想)|是否|哪些|如何|是否可以)/.test(text);
+    const length = Array.from(text).length;
+    if (length < (minLength || 8)) return false;
+    // 只拦“短且以泛问开头”的问法；长问句即使以“你更想/你最近”开头，也可能已经很具体。
+    if (length < 14 && /^(你(是否|有没有|最近|愿意|更想)|是否|哪些|如何|是否可以)/.test(text)) return false;
+    return true;
   }
 
   function normalizeModel(raw, text, fallback) {
