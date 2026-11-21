@@ -1,8 +1,6 @@
-name: Import qtree P1 source
+name: Import qtree P1 source (manual)
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
