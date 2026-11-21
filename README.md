@@ -6,7 +6,7 @@
 
 **GitHub Pages（稳定入口）：** https://oliverww-afk.github.io/qtree/
 
-**公网 HTTPS（临时后端）：** https://d3oupc-ip-117-158-222-122.tunnelmole.net
+**公网 HTTPS（临时后端）：** https://q17b5o-ip-117-158-222-122.tunnelmole.net
 
 GitHub Pages 负责页面外壳；模型接口由本机 `server.js` + Tunnelmole 隧道提供。电脑关机、隧道进程退出或重启后接口会失效，页面会自动回退到离线路线；重新启动后把新的 `https://...tunnelmole.net` 写进 `config.js` 的 `endpoint`，并在末尾加 `/api/compile`。
 
