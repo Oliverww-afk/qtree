@@ -260,11 +260,23 @@
   }
 
   function getSecondItem() {
-    return D.second[state.second] || D.second.read;
+    const item = D.second[state.second] || D.second.read;
+    const firstSource = getFirstItem().source;
+    if (item.source === firstSource) {
+      const alt = (D.secondAlt && D.secondAlt[state.second] || []).find((source) => source !== firstSource);
+      if (alt) return { ...item, source: alt };
+    }
+    return item;
   }
 
   function getThirdItem() {
-    return D.third[state.action] || D.third.check;
+    const item = D.third[state.action] || D.third.check;
+    const used = new Set([getFirstItem().source, getSecondItem().source]);
+    if (used.has(item.source)) {
+      const alt = (D.thirdAlt && D.thirdAlt[state.action] || []).find((source) => !used.has(source));
+      if (alt) return { ...item, source: alt };
+    }
+    return item;
   }
 
   function renderRoute() {
@@ -286,12 +298,6 @@
     stations.appendChild(renderStation(1, "今天", first, statuses[0]));
     stations.appendChild(renderStation(2, "这周", second, statuses[1]));
     stations.appendChild(renderStation(3, "定下来之前", third, statuses[2]));
-
-    const fallback = $("fallback");
-    fallback.replaceChildren();
-    fallback.append("没对口的？");
-    const fallbackLink = makeLink(`搜「${first.keyword}」`, searchUrl(first.keyword));
-    fallback.append(fallbackLink);
   }
 
   function renderFeedback() {

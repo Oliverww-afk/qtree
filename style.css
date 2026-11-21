@@ -35,7 +35,7 @@ body::before {
   pointer-events: none;
   opacity: .32;
   background:
-    radial-gradient(circle at 18% 12%, rgba(200, 132, 42, .07), transparent 32%),
+    radial-gradient(circle at 18% 12%, rgba(36, 82, 63, .055), transparent 32%),
     radial-gradient(circle at 86% 78%, rgba(36, 82, 63, .07), transparent 34%),
     repeating-linear-gradient(0deg, rgba(86, 75, 56, .025) 0, rgba(86, 75, 56, .025) 1px, transparent 1px, transparent 4px);
 }
@@ -78,7 +78,7 @@ a { color: inherit; }
 
 .brand::before {
   content: "十";
-  color: var(--amber);
+  color: var(--green);
   margin-right: 7px;
   font-size: 12px;
   vertical-align: 2px;
@@ -104,7 +104,7 @@ a { color: inherit; }
 }
 
 .dot.filled { background: var(--green); border-color: var(--green); }
-.dot.current { background: var(--amber); border-color: var(--amber); }
+.dot.current { background: var(--green); border-color: var(--green); border-width: 2px; }
 
 .back {
   justify-self: end;
@@ -129,7 +129,7 @@ a { color: inherit; }
 
 .kicker {
   margin: 10px 0 12px;
-  color: var(--amber);
+  color: var(--muted);
   font-size: 12px;
   letter-spacing: .12em;
 }
@@ -488,7 +488,7 @@ h2.screen-title {
 
 .take-head {
   margin: 36px 0 8px;
-  color: var(--amber);
+  color: var(--green);
   font-size: 12px;
   letter-spacing: .1em;
 }
@@ -523,7 +523,7 @@ h2.screen-title {
   position: absolute;
   left: 0;
   top: 2px;
-  color: var(--amber);
+  color: var(--green);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 12px;
   letter-spacing: .03em;
@@ -615,6 +615,6 @@ h2.screen-title {
 }
 
 :focus-visible {
-  outline: 2px solid var(--amber);
+  outline: 2px solid var(--green);
   outline-offset: 3px;
 }

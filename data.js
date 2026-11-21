@@ -203,13 +203,24 @@ window.QTREE_DATA = {
   },
   second: {
     read: { q: "先读哪一条，能少走弯路？", source: "fit171", keyword: "职业 适合" },
-    work: { q: "先投哪类岗位，能最快拿到反馈？", source: "direction91", keyword: "求职 反馈" },
-    same: { q: "还不确定，先补哪块信息？", source: "fit33", keyword: "职业方向 信息" }
+    work: { q: "先投哪类岗位，能最快拿到反馈？", source: "fit79", keyword: "求职 反馈" },
+    same: { q: "还不确定，先补哪块信息？", source: "try28", keyword: "职业方向 信息" }
+  },
+  secondAlt: {
+    read: ["try28", "fit33"],
+    work: ["lost56", "direction91"],
+    same: ["fit33", "fit79"]
   },
   third: {
     check: { q: "查完这一条，现在先查什么？", source: "fit27", keyword: "职业 调研" },
     ask: { q: "先问谁，能问出真实情况？", source: "lost35", keyword: "转行 问人" },
     try: { q: "先试哪件小事，成本最低？", source: "try28", keyword: "试错 成本" },
     rest: { q: "先不动，你需要确认什么？", source: "try22", keyword: "休息 职业" }
+  },
+  thirdAlt: {
+    check: ["fit33", "direction91"],
+    ask: ["lost56", "fit79"],
+    try: ["fit171", "fit33"],
+    rest: ["lost35", "try21"]
   }
 };
