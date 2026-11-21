@@ -1,4 +1,4 @@
-name: Import qtree v2.1 source
+name: Import qtree P1 source
 
 on:
   push:
@@ -20,24 +20,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: main
-      - name: Check whether v2.1 is already in the repository
-        id: check
+      - name: Download P1 package
         run: |
-          if [ -f config.js ] && [ -f compiler.js ]; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Download package
-        if: steps.check.outputs.exists != 'true'
-        run: |
-          curl -L --fail 'https://aka.doubaocdn.com/s/PWWnkqCHMJ' -o /tmp/qtree.zip
+          curl -L --fail 'https://aka.doubaocdn.com/s/uKAUAFbWJB' -o /tmp/qtree.zip
           unzip -o /tmp/qtree.zip \
             index.html style.css app.js data.js config.js compiler.js llm.js \
-            manifest.webmanifest sw.js server.js worker.js README.md .env.example \
+            manifest.webmanifest sw.js server.js worker.js README.md .env.example .gitignore \
             'icons/*' -d .
       - name: Commit imported site
-        if: steps.check.outputs.exists != 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -45,6 +35,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "nothing to commit"
           else
-            git commit -m "Import qtree v2.1 source [skip ci]"
+            git commit -m "Import qtree P1 source [skip ci]"
             git push
           fi
