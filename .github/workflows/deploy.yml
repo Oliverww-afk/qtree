@@ -1,4 +1,4 @@
-name: Deploy qtree PWA
+name: Import qtree v2.1 source
 
 on:
   push:
@@ -6,42 +6,45 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
-  group: pages
-  cancel-in-progress: true
+  group: import-qtree
+  cancel-in-progress: false
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  import:
     runs-on: ubuntu-latest
     steps:
-      - name: Select GitHub Actions as Pages source
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Check whether v2.1 is already in the repository
+        id: check
         run: |
-          gh api -X PUT "repos/${{ github.repository }}/pages" \
-            -H "Accept: application/vnd.github+json" \
-            -f build_type=workflow
+          if [ -f config.js ] && [ -f compiler.js ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Download package
+        if: steps.check.outputs.exists != 'true'
         run: |
-          mkdir -p site
           curl -L --fail 'https://aka.doubaocdn.com/s/PWWnkqCHMJ' -o /tmp/qtree.zip
-          unzip -o /tmp/qtree.zip -d site
-          test -f site/index.html
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: site
-      - name: Deploy
-        id: deployment
-        uses: actions/deploy-pages@v4
+          unzip -o /tmp/qtree.zip \
+            index.html style.css app.js data.js config.js compiler.js llm.js \
+            manifest.webmanifest sw.js server.js worker.js README.md .env.example \
+            'icons/*' -d .
+      - name: Commit imported site
+        if: steps.check.outputs.exists != 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "nothing to commit"
+          else
+            git commit -m "Import qtree v2.1 source [skip ci]"
+            git push
+          fi
