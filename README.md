@@ -98,6 +98,7 @@ node tests\e2e.js
 node tests\byok.js
 node tests\offline.js
 node tests\p1.js
+node tests\real-deepseek.js
 node tests\public.js
 node tests\installability.js
 ```
@@ -107,6 +108,7 @@ node tests\installability.js
 - `byok.js`：mock 直连 API，验证设置保存与“模型路线”。
 - `offline.js`：`qtree-v10` 缓存与断网启动。
 - `p1.js`：分享链接打开、七天回访、本地统计不泄正文、本机/匿名安全出口。
+- `real-deepseek.js`：真实 DeepSeek V4.1-Flash 前端全流程，确认显示“模型路线”。
 - `public.js`：公网页面、manifest、Service Worker、设置弹窗。
 - `installability.js`：Chrome 安装性错误。
 

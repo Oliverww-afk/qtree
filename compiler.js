@@ -455,7 +455,7 @@
   function specificEnough(value, minLength) {
     const text = String(value || "").trim();
     if (Array.from(text).length < (minLength || 8)) return false;
-    return !/是否|有没有|你最近|哪些|如何|是否可以|愿意|更想工作还是|更想读哪些/.test(text);
+    return !/^(你(是否|有没有|最近|愿意|更想)|是否|哪些|如何|是否可以)/.test(text);
   }
 
   function normalizeModel(raw, text, fallback) {
