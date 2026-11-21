@@ -17,6 +17,7 @@ const OLLAMA = process.env.QTREE_OLLAMA_URL || "http://127.0.0.1:11434";
 const API_BASE = (process.env.QTREE_API_BASE || "").replace(/\/+$/, "");
 const API_KEY = process.env.QTREE_API_KEY || "";
 const API_MODEL = process.env.QTREE_API_MODEL || "";
+const UNSAID_FILE = path.join(ROOT, "unsaid.ndjson");
 
 function loadEnv() {
   const file = path.join(ROOT, ".env");
@@ -188,6 +189,20 @@ async function handleCompile(request, response) {
   }
 }
 
+async function handleUnsaid(request, response) {
+  try {
+    const body = JSON.parse(await readBody(request) || "{}");
+    const text = String(body.text || "").trim().slice(0, 200);
+    if (!text) return sendJson(response, 400, { ok: false, error: "empty_text" });
+    if (C.hasCrisis(text)) return sendJson(response, 400, { ok: false, error: "crisis" });
+    const record = { ts: new Date().toISOString(), text };
+    await fs.promises.appendFile(UNSAID_FILE, `${JSON.stringify(record)}\n`, "utf8");
+    return sendJson(response, 200, { ok: true });
+  } catch (error) {
+    return sendJson(response, 502, { ok: false, error: (error && error.message) || "unsaid_error" });
+  }
+}
+
 async function handleHealth(response) {
   if (API_KEY && API_BASE && API_MODEL) {
     try {
@@ -220,6 +235,13 @@ async function handleHealth(response) {
 function serveStatic(request, response) {
   const pathname = decodeURIComponent((request.url || "/").split("?")[0]);
   const relative = pathname === "/" ? "index.html" : pathname.replace(/^\//, "");
+  if (relative.split("/").some((part) => part.startsWith(".")) ||
+      relative === "unsaid.ndjson" ||
+      relative.endsWith(".log")) {
+    response.writeHead(403, { "Content-Type": "text/plain; charset=utf-8" });
+    response.end("Forbidden");
+    return;
+  }
   const file = path.resolve(ROOT, relative);
   if (file !== ROOT && !file.startsWith(ROOT + path.sep)) {
     response.writeHead(403);
@@ -259,6 +281,10 @@ const server = http.createServer((request, response) => {
   }
   if (request.method === "POST" && url.pathname === "/api/compile") {
     handleCompile(request, response);
+    return;
+  }
+  if (request.method === "POST" && url.pathname === "/api/unsaid") {
+    handleUnsaid(request, response);
     return;
   }
   if (request.method === "GET") {

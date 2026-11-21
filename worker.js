@@ -102,6 +102,18 @@ async function health(env) {
   }
 }
 
+async function unsaid(request, env) {
+  const body = await request.json().catch(() => ({}));
+  const text = String(body.text || "").trim().slice(0, 200);
+  if (!text) return json(400, { ok: false, error: "empty_text" });
+  if (!env.UNSAID_KV) return json(503, { ok: false, error: "unsaid_not_configured" });
+  await env.UNSAID_KV.put(
+    `unsaid:${Date.now()}:${crypto.randomUUID()}`,
+    JSON.stringify({ ts: new Date().toISOString(), text })
+  );
+  return json(200, { ok: true });
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -110,6 +122,13 @@ export default {
     if (request.method === "POST" && url.pathname === "/api/compile") {
       try {
         return await compile(request, env);
+      } catch (error) {
+        return json(502, { ok: false, error: String(error && error.message || error) });
+      }
+    }
+    if (request.method === "POST" && url.pathname === "/api/unsaid") {
+      try {
+        return await unsaid(request, env);
       } catch (error) {
         return json(502, { ok: false, error: String(error && error.message || error) });
       }

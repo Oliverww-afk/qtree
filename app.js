@@ -12,7 +12,8 @@
     q3: $("screen-q3"),
     route: $("screen-route"),
     feedback: $("screen-feedback"),
-    takeaway: $("screen-takeaway")
+    takeaway: $("screen-takeaway"),
+    shared: $("screen-shared")
   };
 
   const state = {
@@ -26,8 +27,15 @@
     actionKey: "check",
     second: "read",
     stage: 0,
-    screen: "entry"
+    screen: "entry",
+    shared: null,
+    metrics: {},
+    revisitSaved: false
   };
+
+  const METRICS_KEY = "qtreeMetricsV1";
+  const REVISIT_KEY = "qtreeRevisitV1";
+  const UNSAID_KEY = "qtreeUnsaidV1";
 
   let toastTimer = null;
 
@@ -49,11 +57,12 @@
       q3: 3,
       route: 4,
       feedback: 4,
-      takeaway: 4
+      takeaway: 4,
+      shared: null
     }[name];
 
     const dots = $("dots");
-    dots.dataset.visible = name === "entry" ? "false" : "true";
+    dots.dataset.visible = ["entry", "shared"].includes(name) ? "false" : "true";
     document.querySelectorAll(".dot").forEach((dot) => {
       const index = Number(dot.dataset.dot);
       dot.classList.toggle("filled", !!progress && index < progress);
@@ -73,6 +82,326 @@
     toast.classList.add("show");
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => toast.classList.remove("show"), 1800);
+  }
+
+  function readStorage(key, fallback) {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : fallback;
+    } catch (error) {
+      return fallback;
+    }
+  }
+
+  function writeStorage(key, value) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function defaultMetrics() {
+    return {
+      starts: 0,
+      completions: 0,
+      routeViews: 0,
+      routeExpands: 0,
+      sourceSessions: 0,
+      sourceClicks: 0,
+      shareLinks: 0,
+      imageExports: 0,
+      revisitViews: 0,
+      revisitActed: 0,
+      revisitNot: 0,
+      unsaidLocal: 0,
+      unsaidAnon: 0
+    };
+  }
+
+  function readMetrics() {
+    const value = readStorage(METRICS_KEY, null);
+    const base = defaultMetrics();
+    if (!value || typeof value !== "object") return base;
+    Object.keys(base).forEach((key) => {
+      const number = Number(value[key]);
+      if (Number.isFinite(number) && number >= 0) base[key] = Math.floor(number);
+    });
+    return base;
+  }
+
+  function writeMetrics(value) {
+    return writeStorage(METRICS_KEY, value);
+  }
+
+  function bump(name, amount) {
+    const metrics = readMetrics();
+    metrics[name] = (Number(metrics[name]) || 0) + (amount || 1);
+    writeMetrics(metrics);
+  }
+
+  function markOnce(name) {
+    if (state.metrics[name]) return;
+    state.metrics[name] = true;
+    bump(name);
+  }
+
+  function metricRate(part, total) {
+    if (!total) return "0%";
+    return `${Math.round((part / total) * 100)}%`;
+  }
+
+  function clipText(value, max) {
+    return Compiler && Compiler.clip ? Compiler.clip(value, max) : String(value || "").trim().slice(0, max);
+  }
+
+  function saveRevisitSnapshot() {
+    if (state.shared || state.revisitSaved) return;
+    const snapshot = {
+      v: 1,
+      createdAt: Date.now(),
+      questions: getTakeQuestions(),
+      terms: getSearchTerms(),
+      action: getTonightAction(),
+      mode: state.mode
+    };
+    if (writeStorage(REVISIT_KEY, snapshot)) state.revisitSaved = true;
+  }
+
+  function loadRevisit() {
+    const snapshot = readStorage(REVISIT_KEY, null);
+    if (!snapshot || !Array.isArray(snapshot.questions) || snapshot.questions.length !== 3) return;
+    const createdAt = Number(snapshot.createdAt);
+    if (!Number.isFinite(createdAt)) return;
+    const ageDays = Math.floor((Date.now() - createdAt) / 86400000);
+    if (ageDays < 7 || snapshot.response || snapshot.dismissedAt) return;
+
+    $("revisitMeta").textContent = `第 ${ageDays} 天 · ${new Date(createdAt).toLocaleDateString("zh-CN")}`;
+    const list = $("revisitList");
+    list.replaceChildren();
+    snapshot.questions.forEach((question) => {
+      const item = document.createElement("li");
+      item.textContent = clipText(question, 100);
+      list.appendChild(item);
+    });
+    $("revisitCard").hidden = false;
+    if (!snapshot.viewedAt) {
+      snapshot.viewedAt = Date.now();
+      writeStorage(REVISIT_KEY, snapshot);
+      bump("revisitViews");
+    }
+  }
+
+  function answerRevisit(status) {
+    const snapshot = readStorage(REVISIT_KEY, null);
+    if (!snapshot) return;
+    snapshot.response = status;
+    snapshot.respondedAt = Date.now();
+    writeStorage(REVISIT_KEY, snapshot);
+    bump(status === "acted" ? "revisitActed" : "revisitNot");
+    $("revisitCard").hidden = true;
+    showToast(status === "acted" ? "记下了，继续走" : "记下了，下次再动");
+  }
+
+  function dismissRevisit() {
+    const snapshot = readStorage(REVISIT_KEY, null);
+    if (!snapshot) return;
+    snapshot.dismissedAt = Date.now();
+    writeStorage(REVISIT_KEY, snapshot);
+    $("revisitCard").hidden = true;
+  }
+
+  function encodeCard(value) {
+    const text = JSON.stringify(value);
+    const bytes = new TextEncoder().encode(text);
+    let binary = "";
+    bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+    return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+
+  function decodeCard(value) {
+    const padded = value.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - (value.length % 4)) % 4);
+    const binary = atob(padded);
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
+  }
+
+  function getCardData() {
+    if (state.shared) return state.shared;
+    return {
+      meta: D.meta.verifiedAt,
+      questions: getTakeQuestions(),
+      terms: getSearchTerms(),
+      action: getTonightAction(),
+      mode: state.mode
+    };
+  }
+
+  function sharePayload() {
+    const data = getCardData();
+    return {
+      v: 1,
+      t: data.meta,
+      q: data.questions,
+      s: data.terms,
+      a: data.action,
+      m: data.mode === "model" ? "m" : "o"
+    };
+  }
+
+  function shareUrl() {
+    return `${location.origin}${location.pathname}#card=${encodeCard(sharePayload())}`;
+  }
+
+  function renderSharedCard() {
+    const data = state.shared;
+    if (!data) return;
+    $("sharedMeta").textContent = `别人分享的问题卡 · ${data.meta} · ${data.mode === "model" ? "模型路线" : "离线路线"}`;
+    const list = $("sharedList");
+    list.replaceChildren();
+    data.questions.forEach((question) => {
+      const item = document.createElement("li");
+      item.textContent = question;
+      list.appendChild(item);
+    });
+    const terms = $("sharedTerms");
+    terms.replaceChildren();
+    data.terms.forEach((term) => {
+      const item = document.createElement("li");
+      item.textContent = term;
+      terms.appendChild(item);
+    });
+    $("sharedAction").textContent = data.action;
+  }
+
+  function loadSharedFromHash() {
+    const match = /^#card=([^&]+)/.exec(location.hash);
+    if (!match) return false;
+    try {
+      const parsed = JSON.parse(decodeCard(decodeURIComponent(match[1])));
+      const questions = (Array.isArray(parsed.q) ? parsed.q : []).map((item) => clipText(item, 100)).filter(Boolean).slice(0, 3);
+      const terms = (Array.isArray(parsed.s) ? parsed.s : []).map((item) => clipText(item, 40)).filter(Boolean).slice(0, 3);
+      if (questions.length !== 3 || terms.length !== 3) return false;
+      state.shared = {
+        meta: clipText(parsed.t, 20) || D.meta.verifiedAt,
+        questions,
+        terms,
+        action: clipText(parsed.a, 80) || "今晚先写下你最不确定的一点。",
+        mode: parsed.m === "m" ? "model" : "offline"
+      };
+      renderSharedCard();
+      setScreen("shared");
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function openUnsaid() {
+    $("unsaidText").value = "";
+    $("unsaidMode").value = "local";
+    updateUnsaidNote();
+    $("unsaidModal").hidden = false;
+  }
+
+  function closeUnsaid() {
+    $("unsaidModal").hidden = true;
+  }
+
+  function updateUnsaidNote() {
+    $("unsaidNote").textContent = $("unsaidMode").value === "anonymous"
+      ? "匿名提交：只发送这句话和时间，不带设备信息、不公开、不进入统计；提交后无法撤回。"
+      : "只存本机：文字留在浏览器 localStorage，不发出任何请求。";
+  }
+
+  function unsaidEndpoint() {
+    const endpoint = (window.QTREE_CONFIG && window.QTREE_CONFIG.endpoint) || "";
+    return endpoint.replace(/\/api\/compile$/, "/api/unsaid");
+  }
+
+  function saveUnsaid() {
+    const text = $("unsaidText").value.trim();
+    if (!text) {
+      showToast("先写一句，再决定放在哪里");
+      $("unsaidText").focus();
+      return;
+    }
+    if (hasCrisis(text)) {
+      closeUnsaid();
+      $("crisis").hidden = false;
+      return;
+    }
+    if ($("unsaidMode").value === "local") {
+      const list = readStorage(UNSAID_KEY, []);
+      const items = Array.isArray(list) ? list : [];
+      items.unshift({ text: text.slice(0, 200), createdAt: Date.now() });
+      writeStorage(UNSAID_KEY, items.slice(0, 20));
+      bump("unsaidLocal");
+      closeUnsaid();
+      showToast("只留在这台设备上");
+      return;
+    }
+
+    const endpoint = unsaidEndpoint();
+    if (!endpoint) {
+      showToast("匿名接收端没接上，先选只存本机");
+      return;
+    }
+    fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: text.slice(0, 200) })
+    }).then((response) => {
+      if (!response.ok) throw new Error("unsaid_failed");
+      bump("unsaidAnon");
+      closeUnsaid();
+      showToast("已匿名提交，不会公开");
+    }).catch(() => {
+      showToast("匿名提交没成功，先选只存本机");
+    });
+  }
+
+  function renderStats() {
+    const metrics = readMetrics();
+    const rows = [
+      ["三问完成率", metricRate(metrics.completions, metrics.starts), `${metrics.completions} / ${metrics.starts}`],
+      ["路线展开率", metricRate(metrics.routeExpands, metrics.routeViews), `${metrics.routeExpands} / ${metrics.routeViews}`],
+      ["来源点击率", metricRate(metrics.sourceSessions, metrics.routeViews), `${metrics.sourceSessions} / ${metrics.routeViews}`],
+      ["开始次数", String(metrics.starts), "本地记录"],
+      ["分享链接", String(metrics.shareLinks), "复制次数"],
+      ["图片导出", String(metrics.imageExports), "下载次数"],
+      ["七天回访", `${metrics.revisitActed} 动 / ${metrics.revisitNot} 未动`, `${metrics.revisitViews} 次查看`],
+      ["没问出口", `${metrics.unsaidLocal} 本机 / ${metrics.unsaidAnon} 匿名`, "只记次数"]
+    ];
+    const grid = $("statsGrid");
+    grid.replaceChildren();
+    rows.forEach(([label, value, detail]) => {
+      const row = document.createElement("div");
+      row.className = "stats-row";
+      const labelEl = document.createElement("span");
+      labelEl.className = "stats-label";
+      labelEl.textContent = label;
+      const valueEl = document.createElement("span");
+      valueEl.className = "stats-value";
+      valueEl.textContent = value;
+      const detailEl = document.createElement("span");
+      detailEl.className = "stats-detail";
+      detailEl.textContent = detail;
+      valueEl.appendChild(detailEl);
+      row.appendChild(labelEl);
+      row.appendChild(valueEl);
+      grid.appendChild(row);
+    });
+  }
+
+  function openStats() {
+    renderStats();
+    $("statsModal").hidden = false;
+  }
+
+  function closeStats() {
+    $("statsModal").hidden = true;
   }
 
   function getLabels() {
@@ -150,6 +479,7 @@
     state.actionKey = resolveActionKey();
     state.stage = 0;
     state.second = "read";
+    markOnce("completions");
     renderRoute();
     setScreen("route");
   }
@@ -158,13 +488,19 @@
     return D.sources[sourceId] || null;
   }
 
-  function makeLink(label, href, className) {
+  function makeLink(label, href, className, trackSource) {
     const link = document.createElement("a");
     link.textContent = label;
     link.href = href;
     link.target = "_blank";
     link.rel = "noopener noreferrer";
     if (className) link.className = className;
+    if (trackSource) {
+      link.addEventListener("click", () => {
+        markOnce("sourceSessions");
+        bump("sourceClicks");
+      });
+    }
     return link;
   }
 
@@ -276,7 +612,7 @@
     tag.textContent = source.kind === "article" ? "文章" : "回答";
     top.appendChild(tag);
 
-    const title = makeLink(source.title, source.url, "answer-title");
+    const title = makeLink(source.title, source.url, "answer-title", true);
     top.appendChild(title);
     answer.appendChild(top);
 
@@ -297,14 +633,14 @@
       answer.appendChild(reason);
     }
 
-    const read = makeLink("读这条 →", source.url, "readline");
+    const read = makeLink("读这条 →", source.url, "readline", true);
     answer.appendChild(read);
     station.appendChild(answer);
 
     if (source.threadUrl && source.threadTitle) {
       const links = document.createElement("div");
       links.className = "station-links";
-      links.appendChild(makeLink("看这个问题下的回答 →", source.threadUrl));
+      links.appendChild(makeLink("看这个问题下的回答 →", source.threadUrl, "", true));
       links.appendChild(makeLink(`搜索「${routeItem.keyword}」→`, searchUrl(routeItem.keyword)));
       station.appendChild(links);
     } else {
@@ -349,6 +685,7 @@
     $("routeContext").textContent = `你走到这里：${labels.situation} · ${labels.blocker} · ${labels.action}`;
     const mode = state.mode === "model" ? "模型路线" : "离线路线";
     $("routeMeta").textContent = `检索 ${D.meta.verifiedAt} · ${D.meta.sourceCount} 条可核验回答 · ${mode}`;
+    markOnce("routeViews");
 
     const first = getFirstItem();
     const second = getSecondItem();
@@ -383,6 +720,7 @@
       button.addEventListener("click", () => {
         state.second = item.id;
         state.stage = 1;
+        markOnce("routeExpands");
         renderRoute();
         setScreen("route");
       });
@@ -423,6 +761,7 @@
       terms.appendChild(item);
     });
     $("tonightAction").textContent = getTonightAction();
+    saveRevisitSnapshot();
   }
 
   function resetToEntry() {
@@ -436,11 +775,15 @@
     state.actionKey = "check";
     state.second = "read";
     state.stage = 0;
+    state.shared = null;
+    state.metrics = {};
+    state.revisitSaved = false;
     $("entry").value = "";
     $("entryStatus").hidden = true;
     $("start").disabled = false;
     $("start").textContent = "开始";
     try { localStorage.removeItem("qtreeV2Text"); } catch (error) { /* ignore */ }
+    if (location.hash) history.replaceState(null, "", `${location.pathname}${location.search}`);
     setScreen("entry");
     $("entry").focus();
   }
@@ -465,6 +808,10 @@
     state.questionIndex = 0;
     state.second = "read";
     state.stage = 0;
+    state.shared = null;
+    state.metrics = {};
+    state.revisitSaved = false;
+    bump("starts");
     try { localStorage.setItem("qtreeV2Text", value); } catch (error) { /* ignore */ }
 
     const status = $("entryStatus");
@@ -511,35 +858,49 @@
     }
   }
 
-  function copyTakeaway() {
-    const questions = getTakeQuestions();
-    const terms = getSearchTerms();
-    const action = getTonightAction();
-    const text = [
-      `问题树 · ${D.meta.verifiedAt}`,
-      "",
-      "三个问题",
-      ...questions.map((question, index) => `${index + 1}. ${question}`),
-      "",
-      "拿去搜索",
-      ...terms.map((term) => `- ${term}`),
-      "",
-      "今晚先做",
-      action,
-      "",
-      "答案在知乎，这里只把问题收窄。"
-    ].join("\n");
+  function copyText(text, message, onSuccess) {
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(() => showToast("已复制")).catch(() => showToast("复制失败"));
+      navigator.clipboard.writeText(text).then(() => {
+        if (onSuccess) onSuccess();
+        showToast(message);
+      }).catch(() => showToast("复制失败"));
       return;
     }
     const area = document.createElement("textarea");
     area.value = text;
     document.body.appendChild(area);
     area.select();
-    try { document.execCommand("copy"); showToast("已复制"); }
-    catch (error) { showToast("复制失败"); }
+    try {
+      document.execCommand("copy");
+      if (onSuccess) onSuccess();
+      showToast(message);
+    } catch (error) {
+      showToast("复制失败");
+    }
     area.remove();
+  }
+
+  function copyCard() {
+    const data = getCardData();
+    const text = [
+      `问题树 · ${data.meta}`,
+      "",
+      "三个问题",
+      ...data.questions.map((question, index) => `${index + 1}. ${question}`),
+      "",
+      "拿去搜索",
+      ...data.terms.map((term) => `- ${term}`),
+      "",
+      "今晚先做",
+      data.action,
+      "",
+      "答案在知乎，这里只把问题收窄。"
+    ].join("\n");
+    copyText(text, "已复制");
+  }
+
+  function copyShareLink() {
+    copyText(shareUrl(), "分享链接已复制", () => bump("shareLinks"));
   }
 
   function drawWrapped(ctx, text, x, y, maxWidth, lineHeight) {
@@ -562,7 +923,8 @@
     return y;
   }
 
-  function saveTakeaway() {
+  function saveCard() {
+    const data = getCardData();
     const canvas = document.createElement("canvas");
     canvas.width = 1080;
     canvas.height = 1700;
@@ -579,14 +941,14 @@
 
     ctx.fillStyle = "#6D685E";
     ctx.font = '24px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif';
-    ctx.fillText(`3 个问题 · 3 个搜索词 · 1 个今晚动作 · ${D.meta.verifiedAt}`, 78, 202);
+    ctx.fillText(`3 个问题 · 3 个搜索词 · 1 个今晚动作 · ${data.meta}`, 78, 202);
 
     ctx.fillStyle = "#1A1A1A";
     ctx.font = '600 48px "Songti SC", "Noto Serif SC", "SimSun", serif';
     ctx.fillText("带走这三个问题。", 78, 310);
 
     let y = 405;
-    getTakeQuestions().forEach((question, index) => {
+    data.questions.forEach((question, index) => {
       ctx.fillStyle = "#C8842A";
       ctx.font = '600 25px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif';
       ctx.fillText(`0${index + 1}`, 78, y);
@@ -603,7 +965,7 @@
     y += 46;
     ctx.fillStyle = "#4F4A40";
     ctx.font = '28px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif';
-    getSearchTerms().forEach((term) => {
+    data.terms.forEach((term) => {
       ctx.fillText(`↗  ${term}`, 78, y);
       y += 42;
     });
@@ -615,7 +977,7 @@
     y += 48;
     ctx.fillStyle = "#1A1A1A";
     ctx.font = '30px "Songti SC", "Noto Serif SC", "SimSun", serif';
-    y = drawWrapped(ctx, getTonightAction(), 78, y, 900, 44);
+    y = drawWrapped(ctx, data.action, 78, y, 900, 44);
 
     ctx.fillStyle = "#6D685E";
     ctx.font = '25px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif';
@@ -623,9 +985,10 @@
 
     const url = canvas.toDataURL("image/png");
     const link = document.createElement("a");
-    link.download = `问题树-${D.meta.verifiedAt}.png`;
+    link.download = `问题树-${data.meta}.png`;
     link.href = url;
     link.click();
+    bump("imageExports");
     showToast("图片已生成");
   }
 
@@ -687,8 +1050,27 @@
     startFlow();
   });
   $("back").addEventListener("click", onBack);
-  $("copyBtn").addEventListener("click", copyTakeaway);
-  $("saveBtn").addEventListener("click", saveTakeaway);
+  $("copyBtn").addEventListener("click", copyCard);
+  $("shareBtn").addEventListener("click", copyShareLink);
+  $("saveBtn").addEventListener("click", saveCard);
+  $("sharedCopy").addEventListener("click", copyCard);
+  $("sharedSave").addEventListener("click", saveCard);
+  $("sharedStart").addEventListener("click", resetToEntry);
+  $("revisitDid").addEventListener("click", () => answerRevisit("acted"));
+  $("revisitNot").addEventListener("click", () => answerRevisit("not"));
+  $("revisitDismiss").addEventListener("click", dismissRevisit);
+  $("unsaidLink").addEventListener("click", openUnsaid);
+  $("unsaidClose").addEventListener("click", closeUnsaid);
+  $("unsaidCancel").addEventListener("click", closeUnsaid);
+  $("unsaidMode").addEventListener("change", updateUnsaidNote);
+  $("unsaidSave").addEventListener("click", saveUnsaid);
+  $("statsLink").addEventListener("click", openStats);
+  $("statsClose").addEventListener("click", closeStats);
+  $("statsReset").addEventListener("click", () => {
+    writeMetrics(defaultMetrics());
+    renderStats();
+    showToast("本地统计已清除");
+  });
   $("crisisBack").addEventListener("click", () => {
     $("crisis").hidden = true;
     resetToEntry();
@@ -709,12 +1091,24 @@
   $("settingsModal").addEventListener("click", (event) => {
     if (event.target === $("settingsModal")) closeSettings();
   });
+  $("unsaidModal").addEventListener("click", (event) => {
+    if (event.target === $("unsaidModal")) closeUnsaid();
+  });
+  $("statsModal").addEventListener("click", (event) => {
+    if (event.target === $("statsModal")) closeStats();
+  });
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !$("settingsModal").hidden) closeSettings();
+    if (event.key !== "Escape") return;
+    if (!$("settingsModal").hidden) closeSettings();
+    if (!$("unsaidModal").hidden) closeUnsaid();
+    if (!$("statsModal").hidden) closeStats();
   });
 
   restoreInput();
-  setScreen("entry");
+  if (!loadSharedFromHash()) {
+    setScreen("entry");
+    loadRevisit();
+  }
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {

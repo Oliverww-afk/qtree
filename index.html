@@ -33,10 +33,27 @@
         <div class="entry-card" id="entryCard">
           <input class="entry" id="entry" type="text" maxlength="80" autocomplete="off" placeholder="一句话就够" aria-label="一句话说你现在卡住的事">
           <button class="primary" id="start" type="button">开始</button>
-          <button class="text-action" id="example" type="button">用示例走一遍</button>
+          <div class="entry-links">
+            <button class="text-action" id="example" type="button">用示例走一遍</button>
+            <button class="text-action" id="unsaidLink" type="button">有句话我没问出口</button>
+          </div>
         </div>
+        <section class="revisit-card" id="revisitCard" hidden aria-labelledby="revisitTitle">
+          <p class="revisit-meta" id="revisitMeta">七天前</p>
+          <h2 class="revisit-title" id="revisitTitle">你带走了这三个问题。</h2>
+          <ol class="revisit-list" id="revisitList"></ol>
+          <p class="revisit-question">这七天，你行动了吗？</p>
+          <div class="revisit-actions">
+            <button class="primary" id="revisitDid" type="button">做了一点</button>
+            <button class="secondary" id="revisitNot" type="button">还没动</button>
+            <button class="text-action" id="revisitDismiss" type="button">先收起来</button>
+          </div>
+        </section>
         <p class="privacy">只存在这台设备上。</p>
-        <button class="settings-link" id="settingsLink" type="button">模型设置</button>
+        <div class="entry-tools">
+          <button class="settings-link" id="settingsLink" type="button">模型设置</button>
+          <button class="settings-link" id="statsLink" type="button">本地统计</button>
+        </div>
         <p class="entry-status" id="entryStatus" hidden>正在把这句话编译成三个问题…</p>
       </section>
 
@@ -90,9 +107,30 @@
         </section>
         <div class="take-actions">
           <button class="primary" id="copyBtn" type="button">复制</button>
+          <button class="secondary" id="shareBtn" type="button">分享链接</button>
           <button class="secondary" id="saveBtn" type="button">存成图片</button>
         </div>
         <p class="take-footer">答案在知乎，这里只把问题收窄。</p>
+      </section>
+
+      <section class="screen" id="screen-shared" aria-labelledby="sharedTitle">
+        <p class="take-head" id="sharedMeta">别人分享的问题卡</p>
+        <h2 class="take-title" id="sharedTitle">这三个问题，<br>也许你也在想。</h2>
+        <ol class="take-list" id="sharedList"></ol>
+        <section class="take-block">
+          <p class="take-label">拿去搜索</p>
+          <ul class="search-terms" id="sharedTerms"></ul>
+        </section>
+        <section class="take-block">
+          <p class="take-label">今晚先做</p>
+          <p class="tonight-action" id="sharedAction"></p>
+        </section>
+        <div class="take-actions">
+          <button class="primary" id="sharedCopy" type="button">复制</button>
+          <button class="secondary" id="sharedSave" type="button">存成图片</button>
+          <button class="secondary" id="sharedStart" type="button">我也来写一个</button>
+        </div>
+        <p class="take-footer">这张卡来自别人的分享，没有上传正文。</p>
       </section>
     </main>
   </div>
@@ -141,6 +179,46 @@
       <div class="settings-actions">
         <button class="primary" id="settingsSave" type="button">保存到本机</button>
         <button class="secondary" id="settingsClear" type="button">清除</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="settings-modal" id="unsaidModal" hidden role="dialog" aria-modal="true" aria-labelledby="unsaidTitle">
+    <div class="settings-card">
+      <div class="settings-head">
+        <h2 id="unsaidTitle">有句话，我没问出口。</h2>
+        <button class="settings-close" id="unsaidClose" type="button" aria-label="关闭">×</button>
+      </div>
+      <p class="settings-intro">这里不追问，也不做成公开广场。你可以只留在这台设备，或匿名交给项目组。</p>
+      <label class="field">
+        <span>那句话</span>
+        <textarea id="unsaidText" maxlength="200" rows="4" placeholder="写下来就好，不用组织语言"></textarea>
+      </label>
+      <label class="field">
+        <span>放在哪里</span>
+        <select id="unsaidMode">
+          <option value="local">只存本机，不上传</option>
+          <option value="anonymous">匿名提交给项目组</option>
+        </select>
+      </label>
+      <p class="settings-note" id="unsaidNote">只存本机：文字留在浏览器 localStorage，不发出任何请求。</p>
+      <div class="settings-actions">
+        <button class="primary" id="unsaidSave" type="button">留下</button>
+        <button class="secondary" id="unsaidCancel" type="button">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="settings-modal" id="statsModal" hidden role="dialog" aria-modal="true" aria-labelledby="statsTitle">
+    <div class="settings-card">
+      <div class="settings-head">
+        <h2 id="statsTitle">本地统计</h2>
+        <button class="settings-close" id="statsClose" type="button" aria-label="关闭">×</button>
+      </div>
+      <p class="settings-intro">只在这台设备上记次数，不采集你写的正文，也不上传。用来判断三问、路线和来源有没有人真的走完。</p>
+      <div class="stats-grid" id="statsGrid"></div>
+      <div class="settings-actions">
+        <button class="secondary" id="statsReset" type="button">清除统计</button>
       </div>
     </div>
   </div>

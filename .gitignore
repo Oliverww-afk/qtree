@@ -1,0 +1,7 @@
+.env
+server.out.log
+server.err.log
+unsaid.ndjson
+model-test-1.json
+tests/*.png
+*.log

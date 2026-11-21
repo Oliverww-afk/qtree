@@ -1,4 +1,4 @@
-const CACHE = "qtree-v9";
+const CACHE = "qtree-v10";
 const SHELL = [
   "./",
   "./index.html",
