@@ -24,7 +24,7 @@ jobs:
       - name: Download package
         run: |
           mkdir -p site
-          curl -L --fail 'https://aka.doubaocdn.com/s/NVEceUUZ0g' -o /tmp/qtree.zip
+          curl -L --fail 'https://aka.doubaocdn.com/s/PWWnkqCHMJ' -o /tmp/qtree.zip
           unzip -o /tmp/qtree.zip -d site
           test -f site/index.html
       - name: Setup Pages
