@@ -20,7 +20,7 @@ jobs:
           ref: main
       - name: Download P1 package
         run: |
-          curl -L --fail 'https://aka.doubaocdn.com/s/9hjXVOMCwb' -o /tmp/qtree.zip
+          curl -L --fail 'https://aka.doubaocdn.com/s/UU5Pbt3EUp' -o /tmp/qtree.zip
           unzip -o /tmp/qtree.zip \
             index.html style.css app.js data.js config.js compiler.js llm.js \
             manifest.webmanifest sw.js server.js worker.js README.md .env.example .gitignore \
