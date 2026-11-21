@@ -1,9 +1,6 @@
 name: Import qtree P1 source (manual)
 
 on:
-  push:
-    paths:
-      - '.github/workflows/deploy.yml'
   workflow_dispatch:
 
 permissions:
