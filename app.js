@@ -2,6 +2,8 @@
   "use strict";
 
   const D = window.QTREE_DATA;
+  const Compiler = window.QTreeCompiler;
+  const LLM = window.QTreeLLM;
   const $ = (id) => document.getElementById(id);
   const screens = {
     entry: $("screen-entry"),
@@ -15,9 +17,13 @@
 
   const state = {
     text: "",
-    situation: null,
-    blocker: null,
-    action: null,
+    session: null,
+    mode: "offline",
+    reason: "",
+    answers: [],
+    questionIndex: 0,
+    routeKey: "other|unclear",
+    actionKey: "check",
     second: "read",
     stage: 0,
     screen: "entry"
@@ -25,16 +31,9 @@
 
   let toastTimer = null;
 
-  const crisisWords = [
-    "自杀", "自残", "不想活", "想死", "结束生命", "活着没意思", "死了算了", "轻生"
-  ];
-
   function hasCrisis(text) {
-    return crisisWords.some((word) => text.includes(word));
-  }
-
-  function safeText(value) {
-    return String(value == null ? "" : value);
+    return (Compiler && Compiler.hasCrisis ? Compiler.hasCrisis(text) : false) ||
+      ["自杀", "自残", "不想活", "想死", "结束生命", "活着没意思", "死了算了", "轻生"].some((word) => text.includes(word));
   }
 
   function setScreen(name) {
@@ -77,19 +76,17 @@
   }
 
   function getLabels() {
-    const situation = D.situations.find((item) => item.id === state.situation);
-    const blocker = (D.blockers[state.situation] || []).find((item) => item.id === state.blocker);
-    const action = D.actions.find((item) => item.id === state.action);
+    const qLabels = state.answers.map((item) => item.label).filter(Boolean);
     return {
-      situation: situation ? situation.label : "",
-      blocker: blocker ? blocker.label : "",
-      action: action ? action.label : ""
+      situation: qLabels[0] || "",
+      blocker: qLabels[1] || (state.session ? state.session.stuck_point : ""),
+      action: qLabels[2] || ""
     };
   }
 
   function renderOptions(container, items, onPick, className) {
     container.replaceChildren();
-    items.forEach((item) => {
+    (items || []).forEach((item) => {
       const button = document.createElement("button");
       button.type = "button";
       button.className = className || "option";
@@ -99,35 +96,62 @@
     });
   }
 
-  function renderQ1() {
-    $("q1Quote").textContent = `「${state.text}」`;
-    renderOptions($("q1Options"), D.situations, (item) => {
-      state.situation = item.id;
-      state.blocker = null;
-      renderQ2();
-      setScreen("q2");
+  function renderQuestion(index) {
+    const question = state.session && state.session.questions[index];
+    if (!question) return;
+    state.questionIndex = index;
+    const number = index + 1;
+    const quote = index === 0
+      ? `「${state.text}」`
+      : `上一题：${state.answers[index - 1] ? state.answers[index - 1].label : ""}`;
+    $(`q${number}Quote`).textContent = quote;
+    $(`q${number}Title`).textContent = question.text;
+    $(`q${number}Why`).textContent = `为什么问这个：${question.why}`;
+    renderOptions($(`q${number}Options`), question.options, (item) => {
+      chooseAnswer(index, item);
     });
+    setScreen(`q${number}`);
   }
 
-  function renderQ2() {
-    $("q2Quote").textContent = "";
-    const blockers = D.blockers[state.situation] || [];
-    renderOptions($("q2Options"), blockers, (item) => {
-      state.blocker = item.id;
-      renderQ3();
-      setScreen("q3");
-    });
+  function chooseAnswer(index, item) {
+    state.answers[index] = item;
+    state.answers.length = index + 1;
+
+    if (index === 0 && state.session.mode === "offline" && D.situations.some((situation) => situation.id === item.value)) {
+      const defaultBlocker = { study: "unsure", job: "direction", work: "what", other: "unclear" }[item.value];
+      const set = Compiler.questionSet(item.value, defaultBlocker);
+      state.session.questions[1] = set[1];
+    }
+
+    if (index < 2) {
+      renderQuestion(index + 1);
+      return;
+    }
+    finishQuestions();
   }
 
-  function renderQ3() {
-    $("q3Quote").textContent = "";
-    renderOptions($("q3Options"), D.actions, (item) => {
-      state.action = item.id;
-      state.stage = 0;
-      state.second = "read";
-      renderRoute();
-      setScreen("route");
-    });
+  function resolveRouteKey() {
+    const first = state.answers[0] && state.answers[0].value;
+    const second = state.answers[1] && state.answers[1].value;
+    if (D.situations.some((situation) => situation.id === first) &&
+        (D.blockers[first] || []).some((blocker) => blocker.id === second)) {
+      return `${first}|${second}`;
+    }
+    return state.session.route_key || "other|unclear";
+  }
+
+  function resolveActionKey() {
+    const third = state.answers[2] && state.answers[2].value;
+    return Compiler.ACTION_KEYS.includes(third) ? third : (state.session.action_key || "check");
+  }
+
+  function finishQuestions() {
+    state.routeKey = resolveRouteKey();
+    state.actionKey = resolveActionKey();
+    state.stage = 0;
+    state.second = "read";
+    renderRoute();
+    setScreen("route");
   }
 
   function getSource(sourceId) {
@@ -163,6 +187,60 @@
     head.appendChild(stateLabel);
 
     return head;
+  }
+
+  function stationSource(plan, baseSource, alt, exclude) {
+    const used = new Set(exclude || []);
+    if (plan && D.sources[plan.source_id] && !used.has(plan.source_id)) {
+      return { source: plan.source_id, reason: plan.reason || Compiler.reasonFor(plan.source_id, state.session.stuck_point, "这一站") };
+    }
+    if (D.sources[baseSource] && !used.has(baseSource)) {
+      return { source: baseSource, reason: plan && plan.reason ? plan.reason : Compiler.reasonFor(baseSource, state.session.stuck_point, "这一站") };
+    }
+    const altId = (alt || []).find((sourceId) => D.sources[sourceId] && !used.has(sourceId));
+    if (altId) {
+      return { source: altId, reason: Compiler.reasonFor(altId, state.session.stuck_point, "这一站") };
+    }
+    const picked = Compiler.pickSource(state.text, [...used], baseSource);
+    return { source: picked, reason: Compiler.reasonFor(picked, state.session.stuck_point, "这一站") };
+  }
+
+  function getFirstItem() {
+    const base = D.first[state.routeKey] || D.first["other|unclear"];
+    const plan = state.session.source_plan && state.session.source_plan.first;
+    const picked = stationSource(plan, base.source, [], []);
+    return { ...base, source: picked.source, reason: picked.reason };
+  }
+
+  function getSecondItem() {
+    const base = D.second[state.second] || D.second.read;
+    const branch = state.session.branch_questions && state.session.branch_questions[state.second];
+    const first = getFirstItem();
+    const plan = state.session.source_plan && state.session.source_plan.second && state.session.source_plan.second[state.second];
+    const picked = stationSource(plan, base.source, D.secondAlt[state.second] || [], [first.source]);
+    return {
+      ...base,
+      q: branch ? branch.q : base.q,
+      keyword: branch ? branch.keyword : base.keyword,
+      source: picked.source,
+      reason: picked.reason
+    };
+  }
+
+  function getThirdItem() {
+    const base = D.third[state.actionKey] || D.third.check;
+    const third = state.session.third_questions && state.session.third_questions[state.actionKey];
+    const first = getFirstItem();
+    const second = getSecondItem();
+    const plan = state.session.source_plan && state.session.source_plan.third && state.session.source_plan.third[state.actionKey];
+    const picked = stationSource(plan, base.source, D.thirdAlt[state.actionKey] || [], [first.source, second.source]);
+    return {
+      ...base,
+      q: third ? third.q : base.q,
+      keyword: third ? third.keyword : base.keyword,
+      source: picked.source,
+      reason: picked.reason
+    };
   }
 
   function renderStation(number, timeLabel, routeItem, status) {
@@ -212,6 +290,13 @@
     gist.textContent = `在讲：${source.gist}`;
     answer.appendChild(gist);
 
+    if (routeItem.reason) {
+      const reason = document.createElement("p");
+      reason.className = "station-reason";
+      reason.textContent = `为什么适合你：${routeItem.reason}`;
+      answer.appendChild(reason);
+    }
+
     const read = makeLink("读这条 →", source.url, "readline");
     answer.appendChild(read);
     station.appendChild(answer);
@@ -259,34 +344,11 @@
     return `https://www.zhihu.com/search?type=content&q=${encodeURIComponent(keyword)}`;
   }
 
-  function getFirstItem() {
-    return D.first[`${state.situation}|${state.blocker}`] || D.first["other|unclear"];
-  }
-
-  function getSecondItem() {
-    const item = D.second[state.second] || D.second.read;
-    const firstSource = getFirstItem().source;
-    if (item.source === firstSource) {
-      const alt = (D.secondAlt && D.secondAlt[state.second] || []).find((source) => source !== firstSource);
-      if (alt) return { ...item, source: alt };
-    }
-    return item;
-  }
-
-  function getThirdItem() {
-    const item = D.third[state.action] || D.third.check;
-    const used = new Set([getFirstItem().source, getSecondItem().source]);
-    if (used.has(item.source)) {
-      const alt = (D.thirdAlt && D.thirdAlt[state.action] || []).find((source) => !used.has(source));
-      if (alt) return { ...item, source: alt };
-    }
-    return item;
-  }
-
   function renderRoute() {
     const labels = getLabels();
     $("routeContext").textContent = `你走到这里：${labels.situation} · ${labels.blocker} · ${labels.action}`;
-    $("routeMeta").textContent = `检索 ${D.meta.verifiedAt} · ${D.meta.sourceCount} 条可核验回答`;
+    const mode = state.mode === "model" ? "模型路线" : "离线路线";
+    $("routeMeta").textContent = `检索 ${D.meta.verifiedAt} · ${D.meta.sourceCount} 条可核验回答 · ${mode}`;
 
     const first = getFirstItem();
     const second = getSecondItem();
@@ -332,8 +394,20 @@
     return [getFirstItem().q, getSecondItem().q, getThirdItem().q];
   }
 
+  function getSearchTerms() {
+    const terms = state.session && state.session.search_terms;
+    if (terms && terms.length === 3) return terms;
+    const focus = (state.session && state.session.stuck_point) || "这件事";
+    return [`${focus} 真实经历`, `${focus} 怎么判断`, `${focus} 第一步`];
+  }
+
+  function getTonightAction() {
+    return (state.session && state.session.tonight_action) || "今晚先写下你最不确定的一点。";
+  }
+
   function renderTakeaway() {
-    $("takeMeta").textContent = `3 个问题 · ${D.meta.verifiedAt}`;
+    const mode = state.mode === "model" ? " · 模型路线" : " · 离线路线";
+    $("takeMeta").textContent = `3 个问题 · 3 个搜索词 · 1 个今晚动作 · ${D.meta.verifiedAt}${mode}`;
     const list = $("takeList");
     list.replaceChildren();
     getTakeQuestions().forEach((question) => {
@@ -341,22 +415,37 @@
       item.textContent = question;
       list.appendChild(item);
     });
+    const terms = $("searchTerms");
+    terms.replaceChildren();
+    getSearchTerms().forEach((term) => {
+      const item = document.createElement("li");
+      item.textContent = term;
+      terms.appendChild(item);
+    });
+    $("tonightAction").textContent = getTonightAction();
   }
 
   function resetToEntry() {
     state.text = "";
-    state.situation = null;
-    state.blocker = null;
-    state.action = null;
+    state.session = null;
+    state.mode = "offline";
+    state.reason = "";
+    state.answers = [];
+    state.questionIndex = 0;
+    state.routeKey = "other|unclear";
+    state.actionKey = "check";
     state.second = "read";
     state.stage = 0;
     $("entry").value = "";
+    $("entryStatus").hidden = true;
+    $("start").disabled = false;
+    $("start").textContent = "开始";
     try { localStorage.removeItem("qtreeV2Text"); } catch (error) { /* ignore */ }
     setScreen("entry");
     $("entry").focus();
   }
 
-  function startFlow() {
+  async function startFlow() {
     const value = $("entry").value.trim();
     if (!value) {
       const card = $("entryCard");
@@ -370,15 +459,39 @@
       $("crisis").hidden = false;
       return;
     }
+
     state.text = value;
-    try { localStorage.setItem("qtreeV2Text", value); } catch (error) { /* ignore */ }
-    state.situation = null;
-    state.blocker = null;
-    state.action = null;
-    state.stage = 0;
+    state.answers = [];
+    state.questionIndex = 0;
     state.second = "read";
-    renderQ1();
-    setScreen("q1");
+    state.stage = 0;
+    try { localStorage.setItem("qtreeV2Text", value); } catch (error) { /* ignore */ }
+
+    const status = $("entryStatus");
+    const start = $("start");
+    status.hidden = false;
+    start.disabled = true;
+    start.textContent = "正在整理…";
+
+    let result;
+    try {
+      result = await LLM.compile(value, { timeoutMs: 75000 });
+    } catch (error) {
+      result = { ok: false, mode: "offline", session: Compiler.compileLocal(value), reason: "exception" };
+    }
+
+    state.session = result.session || Compiler.compileLocal(value);
+    state.mode = result.mode === "model" ? "model" : "offline";
+    state.reason = result.reason || "";
+    status.hidden = true;
+    start.disabled = false;
+    start.textContent = "开始";
+
+    if (state.mode === "offline" && state.reason && state.reason !== "no_endpoint") {
+      showToast(state.reason === "model_output_not_specific" ? "模型这次不够具体，已用本地路线" : "模型没接上，先走离线路线");
+    }
+
+    renderQuestion(0);
   }
 
   function onBack() {
@@ -388,18 +501,34 @@
       return;
     }
     if (state.screen === "q2") {
-      renderQ1();
-      setScreen("q1");
+      state.answers.length = 1;
+      renderQuestion(0);
       return;
     }
     if (state.screen === "q3") {
-      renderQ2();
-      setScreen("q2");
+      state.answers.length = 2;
+      renderQuestion(1);
     }
   }
 
   function copyTakeaway() {
-    const text = `问题树 · ${D.meta.verifiedAt}\n\n${getTakeQuestions().map((q, index) => `${index + 1}. ${q}`).join("\n")}\n\n答案在知乎，这里只把问题收窄。`;
+    const questions = getTakeQuestions();
+    const terms = getSearchTerms();
+    const action = getTonightAction();
+    const text = [
+      `问题树 · ${D.meta.verifiedAt}`,
+      "",
+      "三个问题",
+      ...questions.map((question, index) => `${index + 1}. ${question}`),
+      "",
+      "拿去搜索",
+      ...terms.map((term) => `- ${term}`),
+      "",
+      "今晚先做",
+      action,
+      "",
+      "答案在知乎，这里只把问题收窄。"
+    ].join("\n");
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(() => showToast("已复制")).catch(() => showToast("复制失败"));
       return;
@@ -414,7 +543,7 @@
   }
 
   function drawWrapped(ctx, text, x, y, maxWidth, lineHeight) {
-    const chars = Array.from(text);
+    const chars = Array.from(String(text || ""));
     let line = "";
     for (const char of chars) {
       const test = line + char;
@@ -436,7 +565,7 @@
   function saveTakeaway() {
     const canvas = document.createElement("canvas");
     canvas.width = 1080;
-    canvas.height = 1350;
+    canvas.height = 1700;
     const ctx = canvas.getContext("2d");
     if (!ctx) { showToast("当前浏览器不支持导出"); return; }
 
@@ -450,7 +579,7 @@
 
     ctx.fillStyle = "#6D685E";
     ctx.font = '24px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif';
-    ctx.fillText(`3 个问题 · ${D.meta.verifiedAt}`, 78, 202);
+    ctx.fillText(`3 个问题 · 3 个搜索词 · 1 个今晚动作 · ${D.meta.verifiedAt}`, 78, 202);
 
     ctx.fillStyle = "#1A1A1A";
     ctx.font = '600 48px "Songti SC", "Noto Serif SC", "SimSun", serif';
@@ -467,9 +596,30 @@
       y += 62;
     });
 
+    y = Math.max(y + 30, 930);
+    ctx.fillStyle = "#24523F";
+    ctx.font = '600 22px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif';
+    ctx.fillText("拿去搜索", 78, y);
+    y += 46;
+    ctx.fillStyle = "#4F4A40";
+    ctx.font = '28px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif';
+    getSearchTerms().forEach((term) => {
+      ctx.fillText(`↗  ${term}`, 78, y);
+      y += 42;
+    });
+
+    y = Math.max(y + 34, 1190);
+    ctx.fillStyle = "#24523F";
+    ctx.font = '600 22px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif';
+    ctx.fillText("今晚先做", 78, y);
+    y += 48;
+    ctx.fillStyle = "#1A1A1A";
+    ctx.font = '30px "Songti SC", "Noto Serif SC", "SimSun", serif';
+    y = drawWrapped(ctx, getTonightAction(), 78, y, 900, 44);
+
     ctx.fillStyle = "#6D685E";
     ctx.font = '25px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif';
-    ctx.fillText("答案在知乎，这里只把问题收窄。", 78, 1240);
+    ctx.fillText("答案在知乎，这里只把问题收窄。", 78, 1600);
 
     const url = canvas.toDataURL("image/png");
     const link = document.createElement("a");
@@ -484,6 +634,43 @@
       const previous = localStorage.getItem("qtreeV2Text");
       if (previous) $("entry").value = previous;
     } catch (error) { /* ignore */ }
+  }
+
+  function updateSettingsNote() {
+    const mode = $("apiMode").value;
+    $("settingsNote").textContent = mode === "proxy"
+      ? "代理模式：Key 会随每次请求经过代理转发；代理不写入磁盘、不记录日志。适合不允许浏览器跨域的 API。"
+      : "直接模式：Key 只保存在这台设备的 localStorage，不经过问题树服务器；需要 API 允许浏览器跨域。";
+  }
+
+  function openSettings() {
+    const settings = LLM.getSettings();
+    $("apiBase").value = settings.base;
+    $("apiModel").value = settings.model;
+    $("apiKey").value = settings.key;
+    $("apiMode").value = settings.mode;
+    updateSettingsNote();
+    $("settingsModal").hidden = false;
+  }
+
+  function closeSettings() {
+    $("settingsModal").hidden = true;
+  }
+
+  function saveModelSettings() {
+    const value = {
+      base: $("apiBase").value.trim(),
+      model: $("apiModel").value.trim(),
+      key: $("apiKey").value.trim(),
+      mode: $("apiMode").value
+    };
+    if (value.key && (!value.base || !value.model)) {
+      showToast("如果填 Key，API 地址和模型名也要填完整");
+      return;
+    }
+    LLM.saveSettings(value);
+    closeSettings();
+    showToast("已保存到这台设备");
   }
 
   $("start").addEventListener("click", startFlow);
@@ -506,9 +693,27 @@
     $("crisis").hidden = true;
     resetToEntry();
   });
+  $("settingsLink").addEventListener("click", openSettings);
+  $("settingsClose").addEventListener("click", closeSettings);
+  $("apiMode").addEventListener("change", updateSettingsNote);
+  $("settingsSave").addEventListener("click", saveModelSettings);
+  $("settingsClear").addEventListener("click", () => {
+    LLM.clearSettings();
+    $("apiBase").value = "";
+    $("apiModel").value = "";
+    $("apiKey").value = "";
+    $("apiMode").value = "direct";
+    updateSettingsNote();
+    showToast("已清除这台设备的模型设置");
+  });
+  $("settingsModal").addEventListener("click", (event) => {
+    if (event.target === $("settingsModal")) closeSettings();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !$("settingsModal").hidden) closeSettings();
+  });
 
   restoreInput();
-  renderQ1();
   setScreen("entry");
 
   if ("serviceWorker" in navigator) {

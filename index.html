@@ -10,6 +10,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="问题树">
   <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="https://aka.doubaocdn.com/s/qUyQhVITNr" type="image/png">
+  <link rel="apple-touch-icon" href="https://aka.doubaocdn.com/s/qUyQhVITNr">
   <link rel="stylesheet" href="style.css">
   <title>问题树｜先说你卡在哪</title>
 </head>
@@ -34,23 +36,28 @@
           <button class="text-action" id="example" type="button">用示例走一遍</button>
         </div>
         <p class="privacy">只存在这台设备上。</p>
+        <button class="settings-link" id="settingsLink" type="button">模型设置</button>
+        <p class="entry-status" id="entryStatus" hidden>正在把这句话编译成三个问题…</p>
       </section>
 
       <section class="screen" id="screen-q1" aria-labelledby="q1Title">
         <p class="quote" id="q1Quote"></p>
         <h2 class="q-title" id="q1Title">你现在处在哪一步？</h2>
+        <p class="why" id="q1Why"></p>
         <div class="options" id="q1Options"></div>
       </section>
 
       <section class="screen" id="screen-q2" aria-labelledby="q2Title">
         <p class="quote" id="q2Quote"></p>
         <h2 class="q-title" id="q2Title">最卡你的是哪一样？</h2>
+        <p class="why" id="q2Why"></p>
         <div class="options" id="q2Options"></div>
       </section>
 
       <section class="screen" id="screen-q3" aria-labelledby="q3Title">
         <p class="quote" id="q3Quote"></p>
         <h2 class="q-title" id="q3Title">今晚，你愿意先做哪一件？</h2>
+        <p class="why" id="q3Why"></p>
         <div class="options" id="q3Options"></div>
       </section>
 
@@ -73,6 +80,14 @@
         <p class="take-head" id="takeMeta"></p>
         <h2 class="take-title" id="takeTitle">带走这三个问题。</h2>
         <ol class="take-list" id="takeList"></ol>
+        <section class="take-block">
+          <p class="take-label">拿去搜索</p>
+          <ul class="search-terms" id="searchTerms"></ul>
+        </section>
+        <section class="take-block">
+          <p class="take-label">今晚先做</p>
+          <p class="tonight-action" id="tonightAction"></p>
+        </section>
         <div class="take-actions">
           <button class="primary" id="copyBtn" type="button">复制</button>
           <button class="secondary" id="saveBtn" type="button">存成图片</button>
@@ -96,9 +111,46 @@
     </div>
   </div>
 
+  <div class="settings-modal" id="settingsModal" hidden role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <div class="settings-card">
+      <div class="settings-head">
+        <h2 id="settingsTitle">模型设置</h2>
+        <button class="settings-close" id="settingsClose" type="button" aria-label="关闭">×</button>
+      </div>
+      <p class="settings-intro">可以留空使用问题树自带的代理；也可以填自己的 API，让这台设备直连。</p>
+      <label class="field">
+        <span>API 地址</span>
+        <input id="apiBase" type="url" autocomplete="off" placeholder="https://api.example.com/v1">
+      </label>
+      <label class="field">
+        <span>模型名</span>
+        <input id="apiModel" type="text" autocomplete="off" placeholder="deepseek-chat">
+      </label>
+      <label class="field">
+        <span>API Key</span>
+        <input id="apiKey" type="password" autocomplete="off" placeholder="sk-...">
+      </label>
+      <label class="field">
+        <span>密钥走法</span>
+        <select id="apiMode">
+          <option value="direct">只存本机，直接调 API</option>
+          <option value="proxy">交给代理转发</option>
+        </select>
+      </label>
+      <p class="settings-note" id="settingsNote">直接模式：Key 只保存在这台设备的 localStorage，不经过问题树服务器；需要 API 允许浏览器跨域。</p>
+      <div class="settings-actions">
+        <button class="primary" id="settingsSave" type="button">保存到本机</button>
+        <button class="secondary" id="settingsClear" type="button">清除</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="data.js"></script>
+  <script src="config.js"></script>
+  <script src="compiler.js"></script>
+  <script src="llm.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

@@ -1,10 +1,13 @@
-const CACHE = "qtree-v5";
+const CACHE = "qtree-v9";
 const SHELL = [
   "./",
   "./index.html",
   "./style.css",
   "./app.js",
   "./data.js",
+  "./config.js",
+  "./compiler.js",
+  "./llm.js",
   "./manifest.webmanifest"
 ];
 

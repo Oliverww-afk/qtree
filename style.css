@@ -228,6 +228,29 @@ h2.screen-title {
   font-size: 12px;
 }
 
+.settings-link {
+  display: inline-block;
+  margin-top: 4px;
+  border: 0;
+  background: none;
+  color: #8B8478;
+  padding: 0;
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.settings-link:hover { color: var(--green); }
+
+.entry-status {
+  margin: 14px 0 0;
+  color: var(--green);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.entry-status[hidden] { display: none; }
+
 .progress-line {
   display: flex;
   align-items: center;
@@ -255,6 +278,13 @@ h2.screen-title {
   font-size: clamp(24px, 6vw, 34px);
   line-height: 1.25;
   letter-spacing: -.02em;
+}
+
+.why {
+  margin: -8px 0 0;
+  color: #8B8478;
+  font-size: 12px;
+  line-height: 1.55;
 }
 
 .options {
@@ -414,6 +444,15 @@ h2.screen-title {
 
 .gist { color: #4F4A40; }
 
+.station-reason {
+  margin: 8px 0 0;
+  color: #4F4A40;
+  font-size: 12px;
+  line-height: 1.55;
+  border-top: 1px dashed rgba(36, 82, 63, .25);
+  padding-top: 7px;
+}
+
 .readline {
   display: inline-block;
   margin-top: 9px;
@@ -531,6 +570,50 @@ h2.screen-title {
 
 .take-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 
+.take-block {
+  margin: 0 0 22px;
+  padding: 14px 16px 15px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: rgba(255, 253, 247, .6);
+}
+
+.take-label {
+  margin: 0 0 8px;
+  color: var(--green);
+  font-size: 11px;
+  letter-spacing: .12em;
+}
+
+.search-terms {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.search-terms li {
+  margin: 0 0 7px;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.search-terms li::before {
+  content: "↗";
+  margin-right: 7px;
+  color: var(--green);
+}
+
+.search-terms li:last-child { margin-bottom: 0; }
+
+.tonight-action {
+  margin: 0;
+  color: var(--ink);
+  font-family: "Songti SC", "Noto Serif SC", "SimSun", serif;
+  font-size: 17px;
+  line-height: 1.55;
+}
+
 .take-actions .primary { margin-top: 0; flex: 1 1 150px; width: auto; }
 .secondary {
   min-height: 48px;
@@ -618,3 +701,112 @@ h2.screen-title {
   outline: 2px solid var(--green);
   outline-offset: 3px;
 }
+
+.settings-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background: rgba(26, 26, 26, .55);
+}
+
+.settings-modal[hidden] { display: none; }
+
+.settings-card {
+  width: min(100%, 460px);
+  max-height: min(86vh, 720px);
+  overflow: auto;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  box-shadow: 0 24px 70px rgba(20, 18, 14, .2);
+  padding: 22px;
+}
+
+.settings-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.settings-head h2 {
+  margin: 0;
+  font-family: "Songti SC", "Noto Serif SC", "SimSun", serif;
+  font-size: 26px;
+}
+
+.settings-close {
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 26px;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.settings-intro {
+  margin: 0 0 18px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.field {
+  display: block;
+  margin-bottom: 14px;
+}
+
+.field span {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.field input,
+.field select {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: rgba(255, 253, 247, .9);
+  color: var(--ink);
+  padding: 8px 10px;
+  outline: none;
+  font-size: 14px;
+}
+
+.field input:focus,
+.field select:focus { border-color: var(--green); }
+
+.settings-note {
+  margin: 4px 0 16px;
+  color: #7A7468;
+  font-size: 12px;
+  line-height: 1.6;
+  padding: 10px 12px;
+  background: rgba(36, 82, 63, .045);
+  border-left: 2px solid rgba(36, 82, 63, .25);
+}
+
+.settings-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.settings-actions .primary {
+  margin-top: 0;
+  flex: 1 1 auto;
+  width: auto;
+}
+
+.settings-actions .secondary {
+  flex: 0 0 auto;
+  margin-top: 0;
+}
+
