@@ -173,6 +173,10 @@
 
     if (status === "locked") {
       station.setAttribute("aria-disabled", "true");
+      const preview = document.createElement("h3");
+      preview.className = "station-preview";
+      preview.textContent = routeItem.q;
+      station.appendChild(preview);
       return station;
     }
 
