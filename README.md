@@ -6,7 +6,7 @@
 
 **GitHub Pages（稳定入口）：** https://oliverww-afk.github.io/qtree/
 
-**公网 HTTPS（临时后端）：** https://q17b5o-ip-117-158-222-122.tunnelmole.net
+**公网 HTTPS（临时后端）：** https://bvskdr-ip-117-158-222-122.tunnelmole.net
 
 GitHub Pages 负责页面外壳；模型接口由本机 `server.js` + Tunnelmole 隧道提供。电脑关机、隧道进程退出或重启后接口会失效，页面会自动回退到离线路线；重新启动后把新的 `https://...tunnelmole.net` 写进 `config.js` 的 `endpoint`，并在末尾加 `/api/compile`。
 
@@ -38,21 +38,23 @@ Invoke-RestMethod http://127.0.0.1:8787/api/health
 
 ## 三种模型路线
 
-### 1. 本机 Ollama（默认兜底）
+当前默认：**DeepSeek V4.1-Flash**（API 模型名 `deepseek-flash`，Base `https://api.deepseek.com/v1`）。服务端健康检查为 `provider: "remote"`。
 
-`server.js` 默认调用本机 `http://127.0.0.1:11434` 的 `qwen2.5:7b`。当前 7B 能返回 JSON，但问题偏泛，质量闸门会把它退回“离线路线”。这不是接口没通，是模型输出不够具体。
-
-### 2. 站点统一使用远程模型
+### 1. 站点统一使用远程模型（当前已启用）
 
 在 `.env` 里填：
 
 ```dotenv
-QTREE_API_BASE=https://api.example.com/v1
+QTREE_API_BASE=https://api.deepseek.com/v1
 QTREE_API_KEY=sk-...
-QTREE_API_MODEL=model-name
+QTREE_API_MODEL=deepseek-flash
 ```
 
-Key 只在服务端 `.env`，不会进入前端、页面源码或日志。服务端健康检查会变成 `provider: "remote"`。
+Key 只在服务端 `.env`，不会进入前端、页面源码或日志。
+
+### 2. 本机 Ollama（无远程配置时兜底）
+
+`server.js` 会调用本机 `http://127.0.0.1:11434` 的 `qwen2.5:7b`。7B 能返回 JSON，但问题偏泛，质量闸门会把它退回“离线路线”。这不是接口没通，是模型输出不够具体。
 
 ### 3. 访问者自带 Key（BYOK）
 
@@ -110,7 +112,7 @@ node tests\installability.js
 
 ## 还没闭环
 
-- 第三方模型的 `QTREE_API_BASE` / `QTREE_API_MODEL` 还没填，因为还没确认这个 Key 属于哪家服务、用哪个模型。**不能凭 Key 格式猜端点，避免把 Key 发到错误服务商。**
-- `worker.js` 未部署，公网地址仍是 Tunnelmole 临时隧道。
+- 公网地址仍是 Tunnelmole 临时隧道，电脑关机或进程退出后会变。评委演示前必须确认后端在线，或者改用已部署的 Cloudflare Worker。
+- `worker.js` 未部署；匿名安全出口在 Worker 上需要绑定 `UNSAID_KV`。
 - 知乎 OAuth 未接入；PWA 当前不读知乎用户数据。
 - P2 按约定未做。
