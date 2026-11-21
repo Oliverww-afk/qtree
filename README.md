@@ -4,7 +4,7 @@
 
 ## 直接体验
 
-**GitHub Pages（稳定入口）：** https://oliverww-afk.github.io/qtree/
+**GitHub Pages（页面入口）：** https://oliverww-afk.github.io/qtree/
 
 **公网 HTTPS（临时后端）：** https://bvskdr-ip-117-158-222-122.tunnelmole.net
 
@@ -99,8 +99,8 @@ node tests\byok.js
 node tests\offline.js
 node tests\p1.js
 node tests\real-deepseek.js
-node tests\public.js
-node tests\installability.js
+node tests\pages.js
+node tests\pages-api.js
 ```
 
 - `compiler.js`：5 条输入的路线、三问、来源、搜索词、今晚动作。
@@ -109,8 +109,8 @@ node tests\installability.js
 - `offline.js`：`qtree-v10` 缓存与断网启动。
 - `p1.js`：分享链接打开、七天回访、本地统计不泄正文、本机/匿名安全出口。
 - `real-deepseek.js`：真实 DeepSeek V4.1-Flash 前端全流程，确认显示“模型路线”。
-- `public.js`：公网页面、manifest、Service Worker、设置弹窗。
-- `installability.js`：Chrome 安装性错误。
+- `pages.js`：GitHub Pages 入口、manifest、Service Worker、设置弹窗。
+- `pages-api.js`：从 Pages 跨域调用公网后端，确认 `provider: remote`。
 
 ## 还没闭环
 
